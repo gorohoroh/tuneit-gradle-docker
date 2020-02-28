@@ -2,17 +2,7 @@ plugins {
     id 'java'
     id 'application'
     id 'org.springframework.boot' version '2.1.0.RELEASE'
-    id 'com.bmuschko.docker-remote-api' version '4.8.0'
 }
-
-import com.bmuschko.gradle.docker.tasks.image.*
-import com.bmuschko.gradle.docker.tasks.container.*
-
-def dockerBuildDir = 'build/docker/'
-def imageVersion = '1.0'
-def imageId = "gorohoroh/tuneit-gradle-docker:$imageVersion"
-def dockerGroupName = 'Docker'
-def uniqueContainerName = 'test_docker_gradle_plugin'
 
 repositories {
     mavenCentral()
@@ -26,11 +16,6 @@ application {
     mainClassName = 'com.tuneit.App'
 }
 
-compileJava {
-    sourceCompatibility = '1.8'
-    targetCompatibility = '1.8'
-}
-
 jar {
     manifest {
         attributes 'Main-Class': 'com.tuneit.App'
@@ -38,63 +23,5 @@ jar {
 
     from {
         configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
-    }
-}
-
-task createDockerfile(type: Dockerfile, group: dockerGroupName) {
-    destFile = project.file("$dockerBuildDir/Dockerfile")
-    from 'openjdk:8-jre-alpine'
-    copyFile jar.archiveName, '/app/test_service.jar'
-    entryPoint 'java'
-    defaultCommand '-jar', '/app/test_service.jar'
-    exposePort 8080
-    runCommand 'apk --update --no-cache add curl'
-    instruction 'HEALTHCHECK CMD curl -f http://localhost:8080/hello || exit 1'
-}
-
-task syncJar(type: Copy, group: dockerGroupName) {
-    dependsOn assemble
-    from jar.archivePath
-    into dockerBuildDir
-}
-
-task stopContainer(type: DockerStopContainer, group: dockerGroupName) {
-    targetContainerId("$uniqueContainerName")
-    onError { exception -> handleError(exception) }
-}
-
-task removeContainer(type: DockerRemoveContainer, group: dockerGroupName) {
-    dependsOn stopContainer
-    targetContainerId("$uniqueContainerName")
-    onError { exception -> handleError(exception) }
-}
-
-task removeImage(type: DockerRemoveImage, group: dockerGroupName) {
-    dependsOn removeContainer
-    targetImageId(imageId)
-    onError { exception -> handleError(exception) }
-}
-
-task buildImage(type: DockerBuildImage, group: dockerGroupName) {
-    dependsOn createDockerfile, syncJar
-    inputDir = project.file(dockerBuildDir)
-    tags = [imageId]
-}
-
-task createContainer(type: DockerCreateContainer, group: dockerGroupName) {
-    dependsOn buildImage, removeContainer
-    targetImageId buildImage.getImageId()
-    containerName = "$uniqueContainerName"
-    portBindings = ['8080:8080']
-}
-
-task startContainer(type: DockerStartContainer, group: dockerGroupName) {
-    dependsOn createContainer
-    targetContainerId("$uniqueContainerName")
-}
-
-private void handleError(Throwable exc) {
-    if (exc.message != null && !exc.message.contains('NotModifiedException')) {
-        throw new RuntimeException(exc)
     }
 }
