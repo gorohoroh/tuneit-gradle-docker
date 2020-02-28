@@ -5,13 +5,8 @@ plugins {
     id 'com.bmuschko.docker-remote-api' version '4.8.0'
 }
 
-import com.bmuschko.gradle.docker.tasks.image.Dockerfile
-import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
-import com.bmuschko.gradle.docker.tasks.image.DockerRemoveImage
-import com.bmuschko.gradle.docker.tasks.container.DockerCreateContainer
-import com.bmuschko.gradle.docker.tasks.container.DockerStartContainer
-import com.bmuschko.gradle.docker.tasks.container.DockerRemoveContainer
-import com.bmuschko.gradle.docker.tasks.container.DockerStopContainer
+import com.bmuschko.gradle.docker.tasks.image.*
+import com.bmuschko.gradle.docker.tasks.container.*
 
 def dockerBuildDir = 'build/docker/'
 def imageVersion = '1.0'
@@ -65,31 +60,19 @@ task syncJar(type: Copy, group: dockerGroupName) {
 
 task stopContainer(type: DockerStopContainer, group: dockerGroupName) {
     targetContainerId("$uniqueContainerName")
-    onError { exc ->
-        if (exc.message!=null && !exc.message.contains('NotModifiedException')) {
-            throw new RuntimeException(exc)
-        }
-    }
+    onError { exception -> handleError(exception) }
 }
 
 task removeContainer(type: DockerRemoveContainer, group: dockerGroupName) {
     dependsOn stopContainer
     targetContainerId("$uniqueContainerName")
-    onError { exc ->
-        if (exc.message!=null && !exc.message.contains('NotModifiedException')) {
-            throw new RuntimeException(exc)
-        }
-    }
+    onError { exception -> handleError(exception) }
 }
 
 task removeImage(type: DockerRemoveImage, group: dockerGroupName) {
     dependsOn removeContainer
     targetImageId(imageId)
-    onError { exc ->
-        if (exc.message!=null && !exc.message.contains('NotModifiedException')) {
-            throw new RuntimeException(exc)
-        }
-    }
+    onError { exception -> handleError(exception) }
 }
 
 task buildImage(type: DockerBuildImage, group: dockerGroupName) {
@@ -108,4 +91,10 @@ task createContainer(type: DockerCreateContainer, group: dockerGroupName) {
 task startContainer(type: DockerStartContainer, group: dockerGroupName) {
     dependsOn createContainer
     targetContainerId("$uniqueContainerName")
+}
+
+private void handleError(Throwable exc) {
+    if (exc.message != null && !exc.message.contains('NotModifiedException')) {
+        throw new RuntimeException(exc)
+    }
 }
