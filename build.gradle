@@ -6,8 +6,12 @@ plugins {
 }
 
 import com.bmuschko.gradle.docker.tasks.image.Dockerfile
+import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
+import com.bmuschko.gradle.docker.tasks.image.DockerRemoveImage
 
 def dockerBuildDir = 'build/docker/'
+def imageVersion = '1.0'
+def imageId = "gorohoroh/tuneit-gradle-docker:$imageVersion"
 
 repositories {
     mavenCentral()
@@ -41,3 +45,25 @@ task createDockerfile(type: Dockerfile) {
     runCommand 'apk --update --no-cache add curl'
     instruction 'HEALTHCHECK CMD curl -f http://localhost:8080/hello || exit 1'
 }
+
+task syncJar(type: Copy) {
+    dependsOn assemble
+    from jar.archivePath
+    into dockerBuildDir
+}
+
+task buildImage(type: DockerBuildImage) {
+    dependsOn createDockerfile, syncJar
+    inputDir = project.file(dockerBuildDir)
+    tags = [imageId]
+}
+
+task removeImage(type: DockerRemoveImage) {
+    targetImageId(imageId)
+    onError { exc ->
+        if (exc.message!=null && !exc.message.contains('NotModifiedException')) {
+            throw new RuntimeException(exc)
+        }
+    }
+}
+
