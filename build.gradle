@@ -8,11 +8,16 @@ plugins {
 import com.bmuschko.gradle.docker.tasks.image.Dockerfile
 import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
 import com.bmuschko.gradle.docker.tasks.image.DockerRemoveImage
+import com.bmuschko.gradle.docker.tasks.container.DockerCreateContainer
+import com.bmuschko.gradle.docker.tasks.container.DockerStartContainer
+import com.bmuschko.gradle.docker.tasks.container.DockerRemoveContainer
+import com.bmuschko.gradle.docker.tasks.container.DockerStopContainer
 
 def dockerBuildDir = 'build/docker/'
 def imageVersion = '1.0'
 def imageId = "gorohoroh/tuneit-gradle-docker:$imageVersion"
 def dockerGroupName = 'Docker'
+def uniqueContainerName = 'test_docker_gradle_plugin'
 
 repositories {
     mavenCentral()
@@ -53,17 +58,49 @@ task syncJar(type: Copy, group: dockerGroupName) {
     into dockerBuildDir
 }
 
-task buildImage(type: DockerBuildImage, group: dockerGroupName) {
-    dependsOn createDockerfile, syncJar
-    inputDir = project.file(dockerBuildDir)
-    tags = [imageId]
+task stopContainer(type: DockerStopContainer, group: dockerGroupName) {
+    targetContainerId("$uniqueContainerName")
+    onError { exc ->
+        if (exc.message!=null && !exc.message.contains('NotModifiedException')) {
+            throw new RuntimeException(exc)
+        }
+    }
+}
+
+task removeContainer(type: DockerRemoveContainer, group: dockerGroupName) {
+    dependsOn stopContainer
+    targetContainerId("$uniqueContainerName")
+    onError { exc ->
+        if (exc.message!=null && !exc.message.contains('NotModifiedException')) {
+            throw new RuntimeException(exc)
+        }
+    }
 }
 
 task removeImage(type: DockerRemoveImage, group: dockerGroupName) {
+    dependsOn removeContainer
     targetImageId(imageId)
     onError { exc ->
         if (exc.message!=null && !exc.message.contains('NotModifiedException')) {
             throw new RuntimeException(exc)
         }
     }
+}
+
+task buildImage(type: DockerBuildImage, group: dockerGroupName) {
+    dependsOn createDockerfile, syncJar
+    inputDir = project.file(dockerBuildDir)
+    tags = [imageId]
+}
+
+task createContainer(type: DockerCreateContainer, group: dockerGroupName) {
+    dependsOn buildImage, removeContainer
+    targetImageId buildImage.getImageId()
+    containerName = "$uniqueContainerName"
+    portBindings = ['8080:8080']
+}
+
+task startContainer(type: DockerStartContainer, group: dockerGroupName) {
+    dependsOn createContainer
+    targetContainerId("$uniqueContainerName")
 }
