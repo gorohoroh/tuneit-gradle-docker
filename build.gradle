@@ -12,6 +12,7 @@ import com.bmuschko.gradle.docker.tasks.image.DockerRemoveImage
 def dockerBuildDir = 'build/docker/'
 def imageVersion = '1.0'
 def imageId = "gorohoroh/tuneit-gradle-docker:$imageVersion"
+def dockerGroupName = 'Docker'
 
 repositories {
     mavenCentral()
@@ -35,7 +36,7 @@ jar {
     }
 }
 
-task createDockerfile(type: Dockerfile) {
+task createDockerfile(type: Dockerfile, group: dockerGroupName) {
     destFile = project.file("$dockerBuildDir/Dockerfile")
     from 'openjdk:8-jre-alpine'
     copyFile jar.archiveName, '/app/test_service.jar'
@@ -46,19 +47,19 @@ task createDockerfile(type: Dockerfile) {
     instruction 'HEALTHCHECK CMD curl -f http://localhost:8080/hello || exit 1'
 }
 
-task syncJar(type: Copy) {
+task syncJar(type: Copy, group: dockerGroupName) {
     dependsOn assemble
     from jar.archivePath
     into dockerBuildDir
 }
 
-task buildImage(type: DockerBuildImage) {
+task buildImage(type: DockerBuildImage, group: dockerGroupName) {
     dependsOn createDockerfile, syncJar
     inputDir = project.file(dockerBuildDir)
     tags = [imageId]
 }
 
-task removeImage(type: DockerRemoveImage) {
+task removeImage(type: DockerRemoveImage, group: dockerGroupName) {
     targetImageId(imageId)
     onError { exc ->
         if (exc.message!=null && !exc.message.contains('NotModifiedException')) {
@@ -66,4 +67,3 @@ task removeImage(type: DockerRemoveImage) {
         }
     }
 }
-
